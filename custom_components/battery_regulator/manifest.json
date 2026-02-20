@@ -1,0 +1,9 @@
+{
+  "domain": "battery_regulator",
+  "name": "Battery Regulator",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/CoRfr/home-assistant-battery-regulator",
+  "iot_class": "local_polling",
+  "version": "1.0.0"
+}

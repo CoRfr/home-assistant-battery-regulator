@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Battery Regulator",
+        "description": "Configure the battery sensors and parameters.",
+        "data": {
+          "grid_power_sensor": "Grid power sensor (W, positive=import)",
+          "solar_production_sensor": "Solar production sensor (W)",
+          "battery_soc_sensor": "Battery SOC sensor (%)",
+          "battery_power_sensor": "Battery power sensor (W, absolute value)",
+          "hc_hp_sensor": "Off-peak hours sensor (binary_sensor, on=off-peak)",
+          "solar_forecast_sensor": "Solar forecast today (kWh)",
+          "solar_remaining_sensor": "Solar forecast remaining today (kWh)",
+          "tempo_color_sensor": "Tempo color sensor (optional)",
+          "battery_capacity_wh": "Battery capacity (Wh)",
+          "base_load_w": "Base household load (W)",
+          "update_interval": "Update interval (s)"
+        }
+      },
+      "marstek": {
+        "title": "Marstek Configuration",
+        "description": "Configure Marstek-specific settings.",
+        "data": {
+          "marstek_device_id": "Marstek device ID",
+          "marstek_auto_mode_button": "Auto mode button entity"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "target_soc": {
+        "name": "Target SOC"
+      },
+      "reserve_soc": {
+        "name": "Reserve SOC"
+      },
+      "mode": {
+        "name": "Mode"
+      },
+      "commanded_power": {
+        "name": "Commanded Power"
+      },
+      "battery_power": {
+        "name": "Battery Power"
+      }
+    }
+  }
+}
