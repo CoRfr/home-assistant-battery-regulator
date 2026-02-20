@@ -14,17 +14,48 @@ Designed to be **manufacturer-agnostic** — the regulation logic is pure Python
 - **15-second regulation cycle** (configurable) with automatic retry on command failure
 - **UI config flow** — configure all sensors and parameters through the HA interface
 
-## Regulation Rules (priority order)
+## How it works
 
-| # | Condition | Action |
-|---|-----------|--------|
-| 1 | HC, 2am-6am, SOC < target | Charge at -1500W |
-| 2 | Was HC charging, SOC >= target | Auto |
-| 3 | Grid < -100W, solar > 100W, SOC < 95% | Charge surplus at `grid+bat+100` (clamped -100 to -2500W) |
-| 4 | HP, SOC > reserve, grid > 20W or discharging | Discharge at `grid+bat-20` (clamped 0 to 2500W) |
-| 5 | Was surplus charging, grid >= -50W | Auto |
-| 6 | Was discharging, conditions gone | Auto |
-| 7 | Was HC charging, HP started | Auto |
+Every 15 seconds (configurable), the regulator reads all sensors, decides what the battery should do, and sends a command. Rules are evaluated in priority order — the first matching rule wins.
+
+### 1. Off-peak grid charging (2am–6am)
+
+During off-peak hours between 2am and 6am, if the battery is below the [target SOC](#target-soc--how-much-to-charge-overnight), charge from the grid at 1500W. This tops up the battery with cheap electricity before the day starts. The command is re-sent every cycle as a retry mechanism until the target is reached.
+
+**Stops** when the battery reaches the target SOC, or when peak hours begin.
+
+### 2. Solar surplus charging
+
+When the house is exporting to the grid (> 100W export) and solar panels are producing (> 100W), redirect that surplus into the battery instead of giving it away. The charge power is continuously adjusted to absorb exactly the surplus:
+
+```
+charge_power = grid_power + current_battery_power + 100W margin
+```
+
+This targets roughly 100W of grid export (to avoid accidentally importing). Power is clamped between 100W and 2500W.
+
+**Stops** when the surplus disappears (grid export drops below 50W), or when the battery reaches 95%.
+
+### 3. Peak hour discharge
+
+During peak hours, if the house is importing from the grid and the battery is above the [reserve SOC](#reserve-soc--how-much-to-keep-for-the-evening), discharge the battery to cover household consumption. The discharge power is adjusted to target ~20W of grid import (enough to avoid exporting):
+
+```
+discharge_power = grid_power + current_battery_power - 20W offset
+```
+
+Power is clamped between 0W and 2500W. Discharge is skipped if the computed power is below 50W (not worth the wear).
+
+**Stops** when off-peak hours begin, or when the battery drops to the reserve SOC.
+
+### Priority
+
+Rules are evaluated in this order, first match wins:
+
+1. **Off-peak charge** (cheap electricity) — highest priority
+2. **Surplus charge** (free solar) — takes precedence over discharge
+3. **Peak discharge** (avoid expensive imports) — only when not charging
+4. **Stop rules** — return to auto mode when conditions no longer hold
 
 ## Architecture
 
