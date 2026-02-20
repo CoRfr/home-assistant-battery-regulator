@@ -12,7 +12,7 @@
           "hc_hp_sensor": "Off-peak hours sensor (binary_sensor, on=off-peak)",
           "solar_forecast_sensor": "Solar forecast today (kWh)",
           "solar_remaining_sensor": "Solar forecast remaining today (kWh)",
-          "tempo_color_sensor": "Tempo color sensor (optional)",
+          "tempo_color_sensor": "EDF Tempo color sensor (optional)",
           "battery_capacity_wh": "Battery capacity (Wh)",
           "base_load_w": "Base household load (W)",
           "update_interval": "Update interval (s)"

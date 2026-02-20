@@ -1,6 +1,6 @@
 # Battery Regulator — Home Assistant Custom Integration
 
-A Home Assistant custom integration that regulates a home battery system based on solar production, grid power, electricity tariff periods (HC/HP), and optionally Tempo color days.
+A Home Assistant custom integration that regulates a home battery system based on solar production, grid power, electricity tariff periods (HC/HP), and optionally EDF Tempo color days.
 
 Designed to be **manufacturer-agnostic** — the regulation logic is pure Python with no hardware dependencies. Battery control is abstracted behind a `BatteryController` interface, with a Marstek implementation included.
 
@@ -9,7 +9,7 @@ Designed to be **manufacturer-agnostic** — the regulation logic is pure Python
 - **Solar surplus charging** — absorbs excess solar production into the battery
 - **Off-peak (HC) grid charging** — charges from grid during cheap hours to a computed target SOC
 - **Peak (HP) discharge** — discharges to cover household load during expensive hours
-- **Dynamic target SOC** — adjusts based on solar forecast and Tempo color (Rouge/Blanc/Bleu)
+- **Dynamic target SOC** — adjusts based on solar forecast and EDF Tempo color (Rouge/Blanc/Bleu)
 - **Dynamic reserve SOC** — preserves enough battery for essential loads until next off-peak period
 - **15-second regulation cycle** (configurable) with automatic retry on command failure
 - **UI config flow** — configure all sensors and parameters through the HA interface
@@ -80,7 +80,7 @@ After installation and restart, go to **Settings > Integrations > Add Integratio
 | Off-peak hours sensor | Binary sensor: on = off-peak (HC), off = peak (HP) |
 | Solar forecast today | Today's total solar forecast (kWh) |
 | Solar forecast remaining | Remaining solar forecast for today (kWh) |
-| Tempo color sensor | *(Optional)* Tempo color for next day. Without it, a simplified target SOC formula is used. |
+| EDF Tempo color sensor | *(Optional)* EDF Tempo color for next day. Without it, a simplified target SOC formula is used. |
 | Battery capacity | Battery capacity in Wh (default: 5120) |
 | Base household load | Average base load in W for reserve calculation (default: 400) |
 | Update interval | Regulation cycle interval in seconds (default: 15) |
@@ -104,11 +104,11 @@ After installation and restart, go to **Settings > Integrations > Add Integratio
 
 ## Target SOC Formula
 
-| Tempo color | Formula |
-|-------------|---------|
+| EDF Tempo color | Formula |
+|-----------------|---------|
 | Rouge / Blanc | `max(100 - forecast_kwh * 2, 60)` |
 | Bleu | `max(60 - forecast_kwh * 2.5, 20)` |
-| No Tempo sensor | `max(80 - forecast_kwh * 3, 20)` |
+| No EDF Tempo sensor | `max(80 - forecast_kwh * 3, 20)` |
 
 ## Reserve SOC Formula
 

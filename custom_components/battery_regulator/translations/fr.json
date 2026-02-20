@@ -12,7 +12,7 @@
           "hc_hp_sensor": "Capteur heures creuses (on=HC)",
           "solar_forecast_sensor": "Prévision solaire aujourd'hui (kWh)",
           "solar_remaining_sensor": "Prévision solaire restante aujourd'hui (kWh)",
-          "tempo_color_sensor": "Capteur couleur Tempo (optionnel)",
+          "tempo_color_sensor": "Capteur couleur EDF Tempo (optionnel)",
           "battery_capacity_wh": "Capacité batterie (Wh)",
           "base_load_w": "Charge de base du foyer (W)",
           "update_interval": "Intervalle de mise à jour (s)"
