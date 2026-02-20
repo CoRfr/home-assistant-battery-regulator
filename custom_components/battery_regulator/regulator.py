@@ -153,7 +153,6 @@ def regulate(state: State, current_mode: Mode, config: Config) -> Decision:
         and state.battery_soc > reserve_soc
         and current_mode != Mode.CHARGE_SURPLUS
         and (state.grid_power > DISCHARGE_GRID_OFFSET or current_mode == Mode.DISCHARGE)
-        and state.battery_power_abs >= config.discharge_min_power
     ):
         power = _clamp(
             state.grid_power + bat_signed - DISCHARGE_GRID_OFFSET,

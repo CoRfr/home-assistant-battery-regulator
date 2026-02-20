@@ -315,6 +315,29 @@ class TestRegulatePeakDischarge:
         # power = 30 + 0 - 20 = 10, < 50 -> skip
         assert decision.mode != Mode.DISCHARGE
 
+    def test_discharge_starts_from_idle_battery(self):
+        """Discharge must start even when battery is idle (power_abs near zero).
+
+        Regression: battery_power_abs < discharge_min_power was blocking
+        discharge initiation from AUTO mode (catch-22).
+        Snapshot from 2026-02-20 ~16:47 UTC: grid=600W, solar=87W,
+        SOC=57%, battery_power_abs=9W (idle). Should discharge.
+        """
+        state = make_state(
+            grid_power=600,
+            battery_soc=57,
+            battery_power_abs=9,
+            is_off_peak=False,
+            hour=17,
+            minute=47,
+            solar_production=87,
+            solar_remaining_kwh=0.0,
+        )
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        assert decision.mode == Mode.DISCHARGE
+        # power = 600 + 0 - 20 = 580
+        assert decision.power == 580
+
 
 # --- regulate: priority / edge cases ---
 
