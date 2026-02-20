@@ -102,18 +102,34 @@ After installation and restart, go to **Settings > Integrations > Add Integratio
 | `sensor.battery_regulator_commanded_power` | Last commanded power (W) |
 | `sensor.battery_regulator_battery_power` | Battery power with sign (W, negative = charging) |
 
-## Target SOC Formula
+## Target SOC — how much to charge overnight
 
-| EDF Tempo color | Formula |
-|-----------------|---------|
-| Rouge / Blanc | `max(100 - forecast_kwh * 2, 60)` |
-| Bleu | `max(60 - forecast_kwh * 2.5, 20)` |
-| No EDF Tempo sensor | `max(80 - forecast_kwh * 3, 20)` |
+**Target SOC** is the battery level the integration tries to reach during off-peak grid charging (2am-6am). It answers: *"How full should the battery be by morning, given tomorrow's expected solar production?"*
 
-## Reserve SOC Formula
+- On a sunny day, less overnight charging is needed — solar will fill the battery during the day
+- On a cloudy day or an expensive EDF Tempo day (Rouge/Blanc), charge more overnight while electricity is cheap
 
-- **During HC:** 10% (fixed minimum)
-- **During HP:** `max(round((hours_to_HC * base_load_w - solar_remaining_wh) / capacity_wh * 100), 10)`
+| EDF Tempo color | Formula | Example (5 kWh forecast) |
+|-----------------|---------|--------------------------|
+| Rouge / Blanc | `max(100 - forecast * 2, 60)` | 90% |
+| Bleu | `max(60 - forecast * 2.5, 20)` | 48% |
+| No EDF Tempo sensor | `max(80 - forecast * 3, 20)` | 65% |
+
+## Reserve SOC — how much to keep for the evening
+
+**Reserve SOC** is the minimum battery level the integration won't discharge below during peak hours. It answers: *"How much battery do I need to keep so the house can run on battery until the next off-peak period, accounting for remaining solar?"*
+
+- During off-peak (HC): fixed at 10% (no need to reserve — electricity is cheap)
+- During peak (HP): computed dynamically based on hours remaining until off-peak, base household load, and remaining solar forecast
+
+**Formula:** `max(round((hours_to_HC * base_load_w - solar_remaining_wh) / capacity_wh * 100), 10)`
+
+**Example:** At 2pm with 400W base load, 8 hours to off-peak, 2 kWh solar remaining, 5.12 kWh battery:
+- Energy needed: 8h * 400W = 3,200 Wh
+- Minus remaining solar: 3,200 - 2,000 = 1,200 Wh from battery
+- Reserve: 1,200 / 5,120 = **23%**
+
+Late evening (e.g. 9pm, 1h to HC): reserve drops to 10% (minimum) since very little energy is needed.
 
 ## Tests
 
