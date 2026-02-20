@@ -15,6 +15,12 @@
           "tempo_color_sensor": "Capteur couleur EDF Tempo (optionnel)",
           "battery_capacity_wh": "Capacité batterie (Wh)",
           "base_load_w": "Charge de base du foyer (W)",
+          "hc_charge_rate": "Puissance charge heures creuses (W)",
+          "max_charge_rate": "Puissance charge max (W)",
+          "max_discharge_rate": "Puissance décharge max (W)",
+          "surplus_threshold": "Seuil surplus (W)",
+          "surplus_soc_max": "SOC max charge surplus (%)",
+          "discharge_min_power": "Puissance décharge min (W)",
           "update_interval": "Intervalle de mise à jour (s)"
         }
       },

@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "home-assistant-battery-regulator"
+version = "1.0.0"
+description = "Home Assistant custom integration for battery regulation"
+authors = ["CoRfr"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/CoRfr/home-assistant-battery-regulator"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.0"
+pytest-asyncio = ">=1.0"
+pytest-cov = ">=6.0"
+ruff = ">=0.9"
+pre-commit = ">=4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # use ternary operator (sometimes less readable)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["battery_regulator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

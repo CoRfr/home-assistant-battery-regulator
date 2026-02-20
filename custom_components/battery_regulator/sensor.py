@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -37,9 +38,7 @@ async def async_setup_entry(
     )
 
 
-class BatteryRegulatorBaseSensor(
-    CoordinatorEntity[BatteryRegulatorCoordinator], SensorEntity
-):
+class BatteryRegulatorBaseSensor(CoordinatorEntity[BatteryRegulatorCoordinator], SensorEntity):
     """Base class for battery regulator sensors."""
 
     def __init__(
@@ -53,6 +52,14 @@ class BatteryRegulatorBaseSensor(
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_name = f"Battery Regulator {name}"
         self.entity_id = f"{ENTITY_ID_PREFIX}{key}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Battery Regulator",
+            manufacturer="Custom",
+            model="Battery Regulator",
+            sw_version="1.0.0",
+            entry_type=None,
+        )
 
 
 class BatteryRegulatorTargetSOC(BatteryRegulatorBaseSensor):
@@ -61,9 +68,7 @@ class BatteryRegulatorTargetSOC(BatteryRegulatorBaseSensor):
     _attr_native_unit_of_measurement = "%"
     _attr_icon = "mdi:battery-charging-medium"
 
-    def __init__(
-        self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "target_soc", "Target SOC")
 
     @property
@@ -77,9 +82,7 @@ class BatteryRegulatorReserveSOC(BatteryRegulatorBaseSensor):
     _attr_native_unit_of_measurement = "%"
     _attr_icon = "mdi:battery-lock"
 
-    def __init__(
-        self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "reserve_soc", "Reserve SOC")
 
     @property
@@ -92,9 +95,7 @@ class BatteryRegulatorMode(BatteryRegulatorBaseSensor):
 
     _attr_icon = "mdi:battery-sync"
 
-    def __init__(
-        self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "mode", "Mode")
 
     @property
@@ -109,9 +110,7 @@ class BatteryRegulatorCommandedPower(BatteryRegulatorBaseSensor):
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(
-        self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "commanded_power", "Commanded Power")
 
     @property
@@ -126,9 +125,7 @@ class BatteryRegulatorBatteryPower(BatteryRegulatorBaseSensor):
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(
-        self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: BatteryRegulatorCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "battery_power", "Battery Power")
 
     @property

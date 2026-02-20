@@ -20,21 +20,21 @@ Every 15 seconds (configurable), the regulator reads all sensors, decides what t
 
 ### 1. Off-peak grid charging (2am–6am)
 
-During off-peak hours between 2am and 6am, if the battery is below the [target SOC](#target-soc--how-much-to-charge-overnight), charge from the grid at 1500W. This tops up the battery with cheap electricity before the day starts. The command is re-sent every cycle as a retry mechanism until the target is reached.
+During off-peak hours between 2am and 6am, if the battery is below the [target SOC](#target-soc--how-much-to-charge-overnight), charge from the grid at the configured off-peak charge rate (default: 1500W). This tops up the battery with cheap electricity before the day starts. The command is re-sent every cycle as a retry mechanism until the target is reached.
 
 **Stops** when the battery reaches the target SOC, or when peak hours begin.
 
 ### 2. Solar surplus charging
 
-When the house is exporting to the grid (> 100W export) and solar panels are producing (> 100W), redirect that surplus into the battery instead of giving it away. The charge power is continuously adjusted to absorb exactly the surplus:
+When the house is exporting to the grid (above the surplus threshold, default 100W) and solar panels are producing (above the same threshold), redirect that surplus into the battery to maximize self-consumption. The charge power is continuously adjusted to absorb exactly the surplus:
 
 ```
 charge_power = grid_power + current_battery_power + 100W margin
 ```
 
-This targets roughly 100W of grid export (to avoid accidentally importing). Power is clamped between 100W and 2500W.
+This targets roughly 100W of grid export (to avoid accidentally importing). Power is clamped between the surplus threshold and the max charge rate.
 
-**Stops** when the surplus disappears (grid export drops below 50W), or when the battery reaches 95%.
+**Stops** when the surplus disappears (grid export drops below 50W), or when the battery reaches the max surplus SOC (default: 95%).
 
 ### 3. Peak hour discharge
 
@@ -44,7 +44,7 @@ During peak hours, if the house is importing from the grid and the battery is ab
 discharge_power = grid_power + current_battery_power - 20W offset
 ```
 
-Power is clamped between 0W and 2500W. Discharge is skipped if the computed power is below 50W (not worth the wear).
+Power is clamped between 0W and the max discharge rate. Discharge is skipped if the computed power is below the min discharge power (default: 50W — not worth the wear).
 
 **Stops** when off-peak hours begin, or when the battery drops to the reserve SOC.
 
@@ -114,6 +114,12 @@ After installation and restart, go to **Settings > Integrations > Add Integratio
 | EDF Tempo color sensor | *(Optional)* EDF Tempo color for next day. Without it, a simplified target SOC formula is used. |
 | Battery capacity | Battery capacity in Wh (default: 5120) |
 | Base household load | Average base load in W for reserve calculation (default: 400) |
+| Off-peak charge rate | Charge power during off-peak hours in W (default: 1500) |
+| Max charge rate | Maximum charge power in W (default: 2500) |
+| Max discharge rate | Maximum discharge power in W (default: 2500) |
+| Surplus threshold | Grid export threshold to start surplus charging in W (default: 100) |
+| Max SOC for surplus | Stop surplus charging above this SOC in % (default: 95) |
+| Min discharge power | Minimum discharge power worth sending in W (default: 50) |
 | Update interval | Regulation cycle interval in seconds (default: 15) |
 
 ### Step 2 — Marstek
@@ -162,11 +168,19 @@ After installation and restart, go to **Settings > Integrations > Add Integratio
 
 Late evening (e.g. 9pm, 1h to HC): reserve drops to 10% (minimum) since very little energy is needed.
 
+## Development
+
+```bash
+poetry install
+poetry run pre-commit install
+```
+
+Pre-commit hooks run ruff (lint + format) and pytest on every commit.
+
 ## Tests
 
 ```bash
-pip install -r tests/requirements-test.txt
-pytest tests/ -v
+poetry run pytest tests/ -v
 ```
 
 Tests cover the pure regulation logic in `regulator.py` — no Home Assistant installation required.

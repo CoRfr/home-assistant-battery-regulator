@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Pre-commit checks
+        run: poetry run pre-commit run --all-files
+
+      - name: Test with coverage
+        run: poetry run pytest --cov=custom_components/battery_regulator --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false

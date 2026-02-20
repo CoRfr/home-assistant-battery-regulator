@@ -9,14 +9,5 @@ class BatteryController(ABC):
     """Abstract base class for battery controllers."""
 
     @abstractmethod
-    async def set_passive_mode(self, power: int, duration: int) -> None:
-        """Set passive mode with given power and duration.
-
-        Args:
-            power: Power in watts. Negative=charge, positive=discharge.
-            duration: Duration in seconds.
-        """
-
-    @abstractmethod
-    async def set_auto_mode(self) -> None:
-        """Switch battery back to auto mode."""
+    async def set_power(self, power: int) -> None:
+        """Set battery power. Negative=charge, positive=discharge, 0=idle."""

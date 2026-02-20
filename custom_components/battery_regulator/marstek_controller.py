@@ -18,34 +18,28 @@ class MarstekController(BatteryController):
         self,
         hass: HomeAssistant,
         device_id: str,
-        auto_mode_button: str,
     ) -> None:
         self._hass = hass
         self._device_id = device_id
-        self._auto_mode_button = auto_mode_button
 
-    async def set_passive_mode(self, power: int, duration: int) -> None:
-        """Set passive mode via marstek_local_api service."""
-        _LOGGER.debug(
-            "Marstek set_passive_mode: power=%dW, duration=%ds",
-            power,
-            duration,
-        )
+    async def set_power(self, power: int) -> None:
+        """Set battery power via passive mode. 0W = idle."""
+        _LOGGER.debug("Marstek set_power: power=%dW", power)
         await self._hass.services.async_call(
             "marstek_local_api",
             "set_passive_mode",
             {
                 "device_id": self._device_id,
                 "power": power,
-                "duration": duration,
+                "duration": 3600,
             },
         )
 
-    async def set_auto_mode(self) -> None:
-        """Press the auto mode button."""
-        _LOGGER.debug("Marstek set_auto_mode: pressing %s", self._auto_mode_button)
+    async def set_auto_mode(self, auto_mode_button: str) -> None:
+        """Press the auto mode button (used during integration unload only)."""
+        _LOGGER.debug("Marstek set_auto_mode: pressing %s", auto_mode_button)
         await self._hass.services.async_call(
             "button",
             "press",
-            {"entity_id": self._auto_mode_button},
+            {"entity_id": auto_mode_button},
         )

@@ -15,6 +15,12 @@
           "tempo_color_sensor": "EDF Tempo color sensor (optional)",
           "battery_capacity_wh": "Battery capacity (Wh)",
           "base_load_w": "Base household load (W)",
+          "hc_charge_rate": "Off-peak charge rate (W)",
+          "max_charge_rate": "Max charge rate (W)",
+          "max_discharge_rate": "Max discharge rate (W)",
+          "surplus_threshold": "Surplus threshold (W)",
+          "surplus_soc_max": "Max SOC for surplus charging (%)",
+          "discharge_min_power": "Min discharge power (W)",
           "update_interval": "Update interval (s)"
         }
       },
