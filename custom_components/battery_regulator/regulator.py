@@ -77,8 +77,16 @@ def compute_reserve_soc(
     return max(reserve, 10)
 
 
-def _signed_battery_power(mode: Mode, power_abs: int) -> int:
-    """Return signed battery power based on current mode."""
+def _signed_battery_power(mode: Mode, power_abs: int, *, unsigned_sensor: bool) -> int:
+    """Return signed battery power.
+
+    If unsigned_sensor is True, the sensor only reports absolute values and the
+    sign is inferred from the current mode (Sonoff-style sensors).
+    If False, the sensor value is already signed (negative=charge, positive=discharge)
+    and is used as-is.
+    """
+    if not unsigned_sensor:
+        return power_abs  # already signed
     if mode == Mode.CHARGE_SURPLUS or mode == Mode.CHARGE_OFF_PEAK:
         return -power_abs
     elif mode == Mode.DISCHARGE:
@@ -87,7 +95,13 @@ def _signed_battery_power(mode: Mode, power_abs: int) -> int:
         return 0
 
 
-def regulate(state: State, current_mode: Mode, config: Config) -> Decision:
+def regulate(
+    state: State,
+    current_mode: Mode,
+    config: Config,
+    *,
+    unsigned_sensor: bool = False,
+) -> Decision:
     """Main regulation logic. Returns a Decision."""
     target_soc = compute_target_soc(state.tempo_color, state.solar_forecast_kwh)
     reserve_soc = compute_reserve_soc(
@@ -99,7 +113,9 @@ def regulate(state: State, current_mode: Mode, config: Config) -> Decision:
         config.battery_capacity_wh,
     )
 
-    bat_signed = _signed_battery_power(current_mode, state.battery_power_abs)
+    bat_signed = _signed_battery_power(
+        current_mode, state.battery_power_abs, unsigned_sensor=unsigned_sensor
+    )
 
     surplus_threshold = config.surplus_threshold
     min_charge = -config.max_charge_rate
@@ -131,21 +147,48 @@ def regulate(state: State, current_mode: Mode, config: Config) -> Decision:
         )
 
     # Rule 3: Surplus solar charging
+    # Entry: requires grid < -surplus_threshold (significant export).
+    # Stay: when already in CHARGE_SURPLUS, always recalculate power — the grid
+    # may be positive because the battery is over-charging, not because surplus
+    # is gone.  The formula naturally reduces charge to match actual surplus.
+    # Exit: when the formula yields power > max_charge (not enough surplus for
+    # minimum charge rate), switch to AUTO.
+    # Guard: when currently discharging, only switch to surplus if solar alone
+    # explains the grid export (solar > house load).  Otherwise the negative
+    # grid is from battery over-discharge, not real surplus.
+    house_load_est = max(state.grid_power + bat_signed, 0)
+    _real_surplus = current_mode != Mode.DISCHARGE or state.solar_production > house_load_est
+    _surplus_entry = state.grid_power < -surplus_threshold
+    _already_charging = current_mode == Mode.CHARGE_SURPLUS
     if (
-        state.grid_power < -surplus_threshold
+        _real_surplus
+        and (_surplus_entry or _already_charging)
         and state.solar_production > surplus_threshold
         and state.battery_soc < config.surplus_soc_max
     ):
-        power = _clamp(
-            state.grid_power + bat_signed + CHARGE_SURPLUS_OFFSET,
-            min_charge,
-            max_charge,
-        )
-        return Decision(
-            mode=Mode.CHARGE_SURPLUS,
-            power=power,
-            reason=(f"Surplus charge: grid={state.grid_power}W, bat={bat_signed}W, power={power}W"),
-        )
+        # Sanity: never charge more than solar produces (minus margin)
+        max_solar_charge = -(state.solar_production - CHARGE_SURPLUS_OFFSET)
+        raw_power = state.grid_power + bat_signed + CHARGE_SURPLUS_OFFSET
+        # When already charging, bat_signed reflects the current charge rate.
+        # If raw_power > max_charge, surplus can't sustain even minimum charge
+        # → fall through to Rule 5 to exit.  For fresh entry (bat≈0), the grid
+        # threshold already ensures sufficient surplus.
+        if _already_charging and raw_power > max_charge:
+            pass  # fall through to Rule 5
+        else:
+            power = _clamp(
+                raw_power,
+                max(min_charge, max_solar_charge),
+                max_charge,
+            )
+            return Decision(
+                mode=Mode.CHARGE_SURPLUS,
+                power=power,
+                reason=(
+                    f"Surplus charge: grid={state.grid_power}W, bat={bat_signed}W, "
+                    f"solar={state.solar_production}W, power={power}W"
+                ),
+            )
 
     # Rule 4: Peak discharge
     if (
@@ -167,6 +210,16 @@ def regulate(state: State, current_mode: Mode, config: Config) -> Decision:
                     f"Peak discharge: grid={state.grid_power}W, "
                     f"bat={bat_signed}W, SOC={state.battery_soc}%, "
                     f"reserve={reserve_soc}%, power={power}W"
+                ),
+            )
+        elif current_mode == Mode.DISCHARGE:
+            # Computed discharge too low — stop discharging
+            return Decision(
+                mode=Mode.AUTO,
+                power=0,
+                reason=(
+                    f"Discharge stop: computed={power}W < min={config.discharge_min_power}W, "
+                    f"grid={state.grid_power}W"
                 ),
             )
 

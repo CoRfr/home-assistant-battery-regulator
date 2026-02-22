@@ -8,7 +8,44 @@
           "grid_power_sensor": "Grid power sensor (W, positive=import)",
           "solar_production_sensor": "Solar production sensor (W)",
           "battery_soc_sensor": "Battery SOC sensor (%)",
-          "battery_power_sensor": "Battery power sensor (W, absolute value)",
+          "battery_power_sensor": "Battery power sensor (W)",
+          "battery_power_unsigned": "Battery power sensor reports unsigned (absolute) values",
+          "hc_hp_sensor": "Off-peak hours sensor (on=off-peak)",
+          "solar_forecast_sensor": "Solar forecast today (kWh)",
+          "solar_remaining_sensor": "Solar forecast remaining today (kWh)",
+          "tempo_color_sensor": "EDF Tempo color sensor (optional)",
+          "battery_capacity_wh": "Battery capacity (Wh)",
+          "base_load_w": "Base household load (W)",
+          "hc_charge_rate": "Off-peak charge rate (W)",
+          "max_charge_rate": "Max charge rate (W)",
+          "max_discharge_rate": "Max discharge rate (W)",
+          "surplus_threshold": "Surplus threshold (W)",
+          "surplus_soc_max": "Max SOC for surplus charging (%)",
+          "discharge_min_power": "Min discharge power (W)",
+          "update_interval": "Update interval (s)"
+        }
+      },
+      "marstek": {
+        "title": "Marstek Configuration",
+        "description": "Configure Marstek-specific settings.",
+        "data": {
+          "marstek_device_id": "Marstek device ID",
+          "marstek_auto_mode_button": "Auto mode button entity"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Battery Regulator",
+        "description": "Configure the battery sensors and parameters.",
+        "data": {
+          "grid_power_sensor": "Grid power sensor (W, positive=import)",
+          "solar_production_sensor": "Solar production sensor (W)",
+          "battery_soc_sensor": "Battery SOC sensor (%)",
+          "battery_power_sensor": "Battery power sensor (W)",
+          "battery_power_unsigned": "Battery power sensor reports unsigned (absolute) values",
           "hc_hp_sensor": "Off-peak hours sensor (on=off-peak)",
           "solar_forecast_sensor": "Solar forecast today (kWh)",
           "solar_remaining_sensor": "Solar forecast remaining today (kWh)",

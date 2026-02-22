@@ -13,6 +13,7 @@ CONF_SOLAR_REMAINING_SENSOR = "solar_remaining_sensor"
 CONF_TEMPO_COLOR_SENSOR = "tempo_color_sensor"
 
 # Config keys — battery parameters
+CONF_BATTERY_POWER_UNSIGNED = "battery_power_unsigned"
 CONF_BATTERY_CAPACITY_WH = "battery_capacity_wh"
 CONF_BASE_LOAD_W = "base_load_w"
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -53,3 +54,7 @@ RETRY_MAX_ATTEMPTS = 3
 
 # Mode change cooldown
 MIN_MODE_CHANGE_SECONDS = 60
+
+# Command refresh: re-send even when nothing changed to keep battery
+# controller alive (Marstek passive mode expires after its duration).
+COMMAND_REFRESH_SECONDS = 300

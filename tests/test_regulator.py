@@ -105,18 +105,18 @@ class TestComputeReserveSoc:
 class TestRegulateOffPeakCharge:
     def test_off_peak_charge_starts(self):
         state = make_state(is_off_peak=True, hour=3, battery_soc=30, tempo_color="Bleu")
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_OFF_PEAK
         assert decision.power == -1500
 
     def test_off_peak_charge_not_before_2am(self):
         state = make_state(is_off_peak=True, hour=1, battery_soc=30, tempo_color="Bleu")
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode != Mode.CHARGE_OFF_PEAK
 
     def test_off_peak_charge_not_after_6am(self):
         state = make_state(is_off_peak=True, hour=6, battery_soc=30, tempo_color="Bleu")
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode != Mode.CHARGE_OFF_PEAK
 
     def test_off_peak_charge_stops_at_target(self):
@@ -128,18 +128,18 @@ class TestRegulateOffPeakCharge:
             solar_forecast_kwh=5.0,
             tempo_color="Bleu",
         )
-        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
     def test_off_peak_charge_retries_when_below_target(self):
         state = make_state(is_off_peak=True, hour=4, battery_soc=40, tempo_color="Bleu")
-        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_OFF_PEAK
         assert decision.power == -1500
 
     def test_off_peak_charge_stops_when_peak_starts(self):
         state = make_state(is_off_peak=False, hour=7, battery_soc=40, tempo_color="Bleu")
-        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_OFF_PEAK, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
 
@@ -154,7 +154,7 @@ class TestRegulateSurplusCharge:
             battery_soc=60,
             battery_power_abs=0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS
         # power = grid + bat + 100 = -500 + 0 + 100 = -400, clamped to [-2500, -100]
         assert decision.power == -400
@@ -167,19 +167,51 @@ class TestRegulateSurplusCharge:
             battery_power_abs=500,
         )
         # Currently charging, bat_signed = -500
-        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS
         # power = -200 + (-500) + 100 = -600
         assert decision.power == -600
 
-    def test_surplus_stops_when_gone(self):
+    def test_surplus_tapers_as_surplus_shrinks(self):
+        """When already in CHARGE_SURPLUS and grid is between -100 and -50,
+        Rule 3 should keep adjusting power rather than jumping to 0W."""
+        state = make_state(
+            grid_power=-70,
+            solar_production=500,
+            battery_soc=60,
+            battery_power_abs=300,
+        )
+        # Already charging: bat_signed = -300
+        # power = -70 + (-300) + 100 = -270
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.CHARGE_SURPLUS
+        assert decision.power == -270
+
+    def test_surplus_reduces_when_grid_positive(self):
+        """When already in CHARGE_SURPLUS and grid is positive (battery over-charging),
+        reduce charge power rather than stopping completely."""
         state = make_state(
             grid_power=0,
             solar_production=300,
             battery_soc=60,
             battery_power_abs=200,
         )
-        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG)
+        # bat_signed = -200 (charging), raw = 0 + (-200) + 100 = -100
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.CHARGE_SURPLUS
+        assert decision.power == -100
+
+    def test_surplus_stops_when_gone(self):
+        """When surplus is truly exhausted (raw_power > max_charge), exit to AUTO."""
+        state = make_state(
+            grid_power=50,
+            solar_production=300,
+            battery_soc=60,
+            battery_power_abs=50,
+        )
+        # bat_signed = -50 (charging), raw = 50 + (-50) + 100 = +100
+        # raw(100) > max_charge(-100) → not enough surplus → exit
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
     def test_surplus_no_charge_at_95(self):
@@ -188,7 +220,7 @@ class TestRegulateSurplusCharge:
             solar_production=600,
             battery_soc=95,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode != Mode.CHARGE_SURPLUS
 
     def test_surplus_power_clamped_min(self):
@@ -199,7 +231,7 @@ class TestRegulateSurplusCharge:
             battery_soc=50,
             battery_power_abs=0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS
         # power = -110 + 0 + 100 = -10, but clamped to -100 min
         assert decision.power == -100
@@ -212,7 +244,7 @@ class TestRegulateSurplusCharge:
             battery_soc=50,
             battery_power_abs=0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS
         assert decision.power == -2500  # clamped
 
@@ -231,7 +263,7 @@ class TestRegulatePeakDischarge:
             hour=19,
             solar_remaining_kwh=0.0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.DISCHARGE
         # power = 500 + 0 - 20 = 480
         assert decision.power == 480
@@ -247,7 +279,7 @@ class TestRegulatePeakDischarge:
             solar_remaining_kwh=0.0,
         )
         # Already discharging, bat_signed = +400
-        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.DISCHARGE
         # power = 100 + 400 - 20 = 480
         assert decision.power == 480
@@ -260,7 +292,7 @@ class TestRegulatePeakDischarge:
             is_off_peak=True,
             hour=23,
         )
-        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
     def test_discharge_stops_at_reserve(self):
@@ -274,7 +306,7 @@ class TestRegulatePeakDischarge:
         )
         # reserve at 21:00 with 0 solar = max(round(1*400/5120*100), 10) = 10
         # SOC=10 <= reserve=10 -> stop
-        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
     def test_discharge_not_during_surplus_charge(self):
@@ -285,7 +317,7 @@ class TestRegulatePeakDischarge:
             is_off_peak=False,
             hour=14,
         )
-        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
         # Should stop surplus (grid >= -50), not start discharge
         assert decision.mode == Mode.AUTO
 
@@ -298,7 +330,7 @@ class TestRegulatePeakDischarge:
             hour=14,
             solar_remaining_kwh=0.0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.DISCHARGE
         assert decision.power == 2500  # clamped
 
@@ -311,9 +343,31 @@ class TestRegulatePeakDischarge:
             hour=14,
             solar_remaining_kwh=0.0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         # power = 30 + 0 - 20 = 10, < 50 -> skip
         assert decision.mode != Mode.DISCHARGE
+
+    def test_discharge_stops_when_load_drops(self):
+        """When house load drops and computed discharge < min, stop discharging.
+
+        Regression: 2026-02-21 ~17:50 local. Battery discharging 600W, house
+        load dropped ~600W, grid went to -575W.  Rule 4 computed 5W < 50W min
+        but fell through to 'No change', keeping 600W discharge → exported to grid.
+        """
+        state = make_state(
+            grid_power=-575,
+            battery_soc=60,
+            battery_power_abs=600,
+            is_off_peak=False,
+            hour=17,
+            minute=50,
+            solar_remaining_kwh=0.0,
+        )
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
+        # power = -575 + 600 - 20 = 5, < 50 → should stop
+        assert decision.mode == Mode.AUTO
+        assert decision.power == 0
+        assert "Discharge stop" in decision.reason
 
     def test_discharge_starts_from_idle_battery(self):
         """Discharge must start even when battery is idle (power_abs near zero).
@@ -333,7 +387,7 @@ class TestRegulatePeakDischarge:
             solar_production=87,
             solar_remaining_kwh=0.0,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.DISCHARGE
         # power = 600 + 0 - 20 = 580
         assert decision.power == 580
@@ -353,7 +407,7 @@ class TestRegulatePriority:
             solar_production=600,
             tempo_color="Bleu",
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_OFF_PEAK
 
     def test_no_change_stays_auto(self):
@@ -366,7 +420,7 @@ class TestRegulatePriority:
             is_off_peak=False,
             hour=14,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.AUTO
 
     def test_live_snapshot_2026_02_20_1400(self):
@@ -405,12 +459,12 @@ class TestRegulatePriority:
         )
 
         # Already surplus charging (as old YAML was doing)
-        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS
         assert decision.power == -351
 
         # Starting from AUTO should also trigger surplus
-        decision_fresh = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision_fresh = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision_fresh.mode == Mode.CHARGE_SURPLUS
         # From AUTO, bat_signed=0: -443 + 0 + 100 = -343
         assert decision_fresh.power == -343
@@ -436,5 +490,83 @@ class TestRegulatePriority:
             grid_power=-500,
             solar_production=600,
         )
-        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG)
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.CHARGE_SURPLUS
+
+    def test_surplus_charge_clamped_to_solar_production(self):
+        """Charge power must not exceed solar production minus margin.
+
+        When already in CHARGE_SURPLUS mode with unsigned sensor, bat_signed
+        flips negative, producing a huge charge command.  The solar clamp
+        must limit it.
+        """
+        state = make_state(
+            grid_power=-917,
+            solar_production=264,
+            battery_soc=50,
+            battery_power_abs=894,
+            is_off_peak=False,
+            hour=8,
+            minute=15,
+        )
+        # Already in CHARGE_SURPLUS: bat_signed = -894
+        # Formula: -917 + (-894) + 100 = -1711
+        # Solar clamp: -(264 - 100) = -164
+        decision = regulate(state, Mode.CHARGE_SURPLUS, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.CHARGE_SURPLUS
+        assert decision.power == -164
+        assert decision.power >= -(state.solar_production - 100)
+
+    def test_discharge_overdrive_not_confused_with_surplus(self):
+        """Battery over-discharge must not trigger surplus charging.
+
+        Regression: when discharging and the Marstek commands time out,
+        the battery keeps discharging at a high rate, pushing the grid
+        negative.  Rule 3 misidentified this as solar surplus because
+        grid < -threshold and solar > threshold, even though solar (340W)
+        was far below house load (~810W).
+        Snapshot from 2026-02-21 09:20:30 local.
+        """
+        state = make_state(
+            grid_power=-151,
+            solar_production=340,
+            battery_soc=26,
+            battery_power_abs=961,
+            is_off_peak=False,
+            hour=9,
+            minute=20,
+            solar_remaining_kwh=8.0,
+        )
+        # House load ≈ grid + bat = -151 + 961 = 810W
+        # Solar (340W) < house load (810W) → NOT real surplus
+        # Rule 3 should be skipped, Rule 4 should reduce discharge
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.DISCHARGE
+        # Should reduce discharge: power = -151 + 961 - 20 = 790W
+        assert decision.power == 790
+
+    def test_real_surplus_during_discharge_switches_to_charge(self):
+        """Genuine solar surplus during discharge should switch to charging.
+
+        When solar production exceeds house load, the grid export IS real
+        surplus and Rule 3 should trigger even from discharge mode.
+        """
+        state = make_state(
+            grid_power=-800,
+            solar_production=2000,
+            battery_soc=50,
+            battery_power_abs=200,
+            is_off_peak=False,
+            hour=12,
+            minute=0,
+        )
+        # House load ≈ grid + bat = -800 + 200 = -600W?? No.
+        # With unsigned_sensor=True and DISCHARGE: bat_signed = +200
+        # House load ≈ -800 + 200 = -600?  That's wrong, grid is export.
+        # Actually: house_load = solar + grid_import - battery_export
+        # With grid=-800 (export), solar=2000, bat=200 (discharge):
+        # house = 2000 - 800 - 200 = 1000W?  No.
+        # house_load_est = grid + bat_signed = -800 + 200 = -600
+        # solar (2000) > house_load_est (-600) → real surplus → Rule 3 triggers
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
         assert decision.mode == Mode.CHARGE_SURPLUS

@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.helpers import selector
 
 from .const import (
     CONF_BASE_LOAD_W,
     CONF_BATTERY_CAPACITY_WH,
     CONF_BATTERY_POWER_SENSOR,
+    CONF_BATTERY_POWER_UNSIGNED,
     CONF_BATTERY_SOC_SENSOR,
     CONF_DISCHARGE_MIN_POWER,
     CONF_GRID_POWER_SENSOR,
@@ -54,6 +55,7 @@ STEP_GENERIC_SCHEMA = vol.Schema(
         vol.Required(CONF_BATTERY_POWER_SENSOR): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor"),
         ),
+        vol.Optional(CONF_BATTERY_POWER_UNSIGNED, default=False): selector.BooleanSelector(),
         vol.Required(CONF_HC_HP_SENSOR): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="binary_sensor"),
         ),
@@ -174,6 +176,22 @@ STEP_MARSTEK_SCHEMA = vol.Schema(
 )
 
 
+def _schema_with_defaults(schema: vol.Schema, defaults: dict[str, Any]) -> vol.Schema:
+    """Return a copy of the schema with defaults filled from existing config."""
+    new_schema = {}
+    for key, val in schema.schema.items():
+        if key in defaults:
+            new_key = (
+                vol.Optional(str(key), default=defaults[key])
+                if isinstance(key, vol.Optional)
+                else vol.Required(str(key), default=defaults[key])
+            )
+            new_schema[new_key] = val
+        else:
+            new_schema[key] = val
+    return vol.Schema(new_schema)
+
+
 class BatteryRegulatorConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Battery Regulator."""
 
@@ -181,6 +199,11 @@ class BatteryRegulatorConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Return the options flow handler."""
+        return BatteryRegulatorOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> dict:
         """Step 1: Generic battery sensors."""
@@ -206,3 +229,32 @@ class BatteryRegulatorConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="marstek",
             data_schema=STEP_MARSTEK_SCHEMA,
         )
+
+
+class BatteryRegulatorOptionsFlow(OptionsFlow):
+    """Handle options for Battery Regulator."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        self._config_entry = config_entry
+        self._data: dict[str, Any] = {}
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> dict:
+        """Step 1: Generic battery sensors (pre-filled with current values)."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_marstek()
+
+        schema = _schema_with_defaults(STEP_GENERIC_SCHEMA, self._config_entry.data)
+        return self.async_show_form(step_id="init", data_schema=schema)
+
+    async def async_step_marstek(self, user_input: dict[str, Any] | None = None) -> dict:
+        """Step 2: Marstek-specific configuration."""
+        if user_input is not None:
+            self._data.update(user_input)
+            # Update entry.data and trigger reload
+            self.hass.config_entries.async_update_entry(self._config_entry, data=self._data)
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        schema = _schema_with_defaults(STEP_MARSTEK_SCHEMA, self._config_entry.data)
+        return self.async_show_form(step_id="marstek", data_schema=schema)

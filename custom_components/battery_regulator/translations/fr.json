@@ -8,7 +8,44 @@
           "grid_power_sensor": "Capteur puissance réseau (W, positif=import)",
           "solar_production_sensor": "Capteur production solaire (W)",
           "battery_soc_sensor": "Capteur SOC batterie (%)",
-          "battery_power_sensor": "Capteur puissance batterie (W, valeur absolue)",
+          "battery_power_sensor": "Capteur puissance batterie (W)",
+          "battery_power_unsigned": "Le capteur puissance batterie rapporte des valeurs absolues (non signées)",
+          "hc_hp_sensor": "Capteur heures creuses (on=HC)",
+          "solar_forecast_sensor": "Prévision solaire aujourd'hui (kWh)",
+          "solar_remaining_sensor": "Prévision solaire restante aujourd'hui (kWh)",
+          "tempo_color_sensor": "Capteur couleur EDF Tempo (optionnel)",
+          "battery_capacity_wh": "Capacité batterie (Wh)",
+          "base_load_w": "Charge de base du foyer (W)",
+          "hc_charge_rate": "Puissance charge heures creuses (W)",
+          "max_charge_rate": "Puissance charge max (W)",
+          "max_discharge_rate": "Puissance décharge max (W)",
+          "surplus_threshold": "Seuil surplus (W)",
+          "surplus_soc_max": "SOC max charge surplus (%)",
+          "discharge_min_power": "Puissance décharge min (W)",
+          "update_interval": "Intervalle de mise à jour (s)"
+        }
+      },
+      "marstek": {
+        "title": "Configuration Marstek",
+        "description": "Configurez les paramètres spécifiques à Marstek.",
+        "data": {
+          "marstek_device_id": "ID appareil Marstek",
+          "marstek_auto_mode_button": "Bouton mode auto"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Régulateur de batterie",
+        "description": "Configurez les capteurs et paramètres de la batterie.",
+        "data": {
+          "grid_power_sensor": "Capteur puissance réseau (W, positif=import)",
+          "solar_production_sensor": "Capteur production solaire (W)",
+          "battery_soc_sensor": "Capteur SOC batterie (%)",
+          "battery_power_sensor": "Capteur puissance batterie (W)",
+          "battery_power_unsigned": "Le capteur puissance batterie rapporte des valeurs absolues (non signées)",
           "hc_hp_sensor": "Capteur heures creuses (on=HC)",
           "solar_forecast_sensor": "Prévision solaire aujourd'hui (kWh)",
           "solar_remaining_sensor": "Prévision solaire restante aujourd'hui (kWh)",

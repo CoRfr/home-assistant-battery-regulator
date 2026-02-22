@@ -11,9 +11,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    COMMAND_REFRESH_SECONDS,
     CONF_BASE_LOAD_W,
     CONF_BATTERY_CAPACITY_WH,
     CONF_BATTERY_POWER_SENSOR,
+    CONF_BATTERY_POWER_UNSIGNED,
     CONF_BATTERY_SOC_SENSOR,
     CONF_DISCHARGE_MIN_POWER,
     CONF_GRID_POWER_SENSOR,
@@ -78,6 +80,7 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
         self._current_mode = Mode.AUTO
         self._last_commanded_power = 0
         self._last_mode_change_time: datetime = dt_util.utcnow()
+        self._unsigned_sensor = config.get(CONF_BATTERY_POWER_UNSIGNED, False)
         self._reg_config = Config(
             battery_capacity_wh=config.get(CONF_BATTERY_CAPACITY_WH, DEFAULT_BATTERY_CAPACITY_WH),
             base_load_w=config.get(CONF_BASE_LOAD_W, DEFAULT_BASE_LOAD_W),
@@ -88,6 +91,7 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
             surplus_soc_max=config.get(CONF_SURPLUS_SOC_MAX, DEFAULT_SURPLUS_SOC_MAX),
             discharge_min_power=config.get(CONF_DISCHARGE_MIN_POWER, DEFAULT_DISCHARGE_MIN_POWER),
         )
+        self._last_command_time: datetime = dt_util.utcnow()
         self._retry_task: asyncio.Task | None = None
 
     @property
@@ -122,11 +126,13 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
     @property
     def battery_power_signed(self) -> int:
         """Battery power with sign based on current mode."""
-        power_abs = self._get_sensor_int(self._config[CONF_BATTERY_POWER_SENSOR], 0)
+        power = self._get_sensor_int(self._config[CONF_BATTERY_POWER_SENSOR], 0)
+        if not self._unsigned_sensor:
+            return power
         if self._current_mode in (Mode.CHARGE_SURPLUS, Mode.CHARGE_OFF_PEAK):
-            return -power_abs
+            return -power
         elif self._current_mode == Mode.DISCHARGE:
-            return power_abs
+            return power
         else:
             return 0
 
@@ -176,7 +182,12 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
 
     async def _async_update_data(self) -> Decision:
         state = self._read_state()
-        decision = regulate(state, self._current_mode, self._reg_config)
+        decision = regulate(
+            state,
+            self._current_mode,
+            self._reg_config,
+            unsigned_sensor=self._unsigned_sensor,
+        )
 
         mode_changed = decision.mode != self._current_mode
         power_changed = decision.power != self._last_commanded_power
@@ -188,7 +199,7 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
             if elapsed < MIN_MODE_CHANGE_SECONDS:
                 _LOGGER.debug(
                     "Battery regulator: mode change %s -> %s suppressed by cooldown "
-                    "(%.0fs < %ds) — %s",
+                    "(%.1fs < %ds) — %s",
                     self._current_mode.value,
                     decision.mode.value,
                     elapsed,
@@ -212,10 +223,13 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
             self._current_mode = decision.mode
             self._last_commanded_power = decision.power
             self._last_mode_change_time = now
+            self._last_command_time = now
             self._cancel_retry()
             await self._send_command_with_retry()
         elif power_changed:
-            # Power adjustment within same mode — no cooldown
+            # Power adjustment within same mode — no cooldown, but reset
+            # the cooldown timer so we stay in this mode for another full
+            # cooldown period before allowing a mode switch.
             _LOGGER.info(
                 "Battery regulator: %s power %dW -> %dW (%s)",
                 self._current_mode.value,
@@ -224,15 +238,32 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
                 decision.reason,
             )
             self._last_commanded_power = decision.power
+            now_pw = dt_util.utcnow()
+            self._last_mode_change_time = now_pw
+            self._last_command_time = now_pw
             self._cancel_retry()
             await self._send_command_with_retry()
         else:
-            _LOGGER.debug(
-                "Battery regulator: no change (%s, %dW) — %s",
-                decision.mode.value,
-                decision.power,
-                decision.reason,
-            )
+            # Re-send periodically to keep battery controller alive
+            # (Marstek passive mode expires after its configured duration).
+            now = dt_util.utcnow()
+            since_last = (now - self._last_command_time).total_seconds()
+            if self._current_mode != Mode.AUTO and since_last >= COMMAND_REFRESH_SECONDS:
+                _LOGGER.debug(
+                    "Battery regulator: refresh command (%s, %dW) after %.0fs",
+                    decision.mode.value,
+                    decision.power,
+                    since_last,
+                )
+                await self._send_command_with_retry()
+                self._last_command_time = now
+            else:
+                _LOGGER.debug(
+                    "Battery regulator: no change (%s, %dW) — %s",
+                    decision.mode.value,
+                    decision.power,
+                    decision.reason,
+                )
 
         return decision
 
