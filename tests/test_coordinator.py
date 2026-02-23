@@ -1,4 +1,4 @@
-"""Unit tests for coordinator cooldown and set_power logic.
+"""Unit tests for coordinator power-change and command logic.
 
 Uses lightweight mocks — no Home Assistant runtime required.
 """
@@ -49,7 +49,7 @@ _pkg_root = Path(__file__).resolve().parent.parent / "custom_components"
 if str(_pkg_root) not in sys.path:
     sys.path.insert(0, str(_pkg_root))
 
-from battery_regulator.const import COMMAND_REFRESH_SECONDS, MIN_MODE_CHANGE_SECONDS  # noqa: E402
+from battery_regulator.const import COMMAND_REFRESH_SECONDS  # noqa: E402
 from battery_regulator.coordinator import BatteryRegulatorCoordinator  # noqa: E402
 from battery_regulator.regulator import Config, Decision, Mode  # noqa: E402
 
@@ -101,7 +101,6 @@ def _make_coordinator(
     coord._controller = controller
     coord._current_mode = Mode.AUTO
     coord._last_commanded_power = 0
-    coord._last_mode_change_time = datetime.now(tz=UTC) - timedelta(seconds=120)
     coord._unsigned_sensor = True
     coord._reg_config = DEFAULT_REG_CONFIG
     coord._last_command_time = datetime.now(tz=UTC) - timedelta(seconds=120)
@@ -111,19 +110,16 @@ def _make_coordinator(
 
 
 # ---------------------------------------------------------------------------
-# Tests: mode change cooldown
+# Tests: power changes trigger commands
 # ---------------------------------------------------------------------------
 
 
-class TestModeChangeCooldown:
-    """Verify the MIN_MODE_CHANGE_SECONDS cooldown between mode transitions."""
-
+class TestPowerChange:
     @pytest.mark.asyncio
-    async def test_mode_change_allowed_after_cooldown(self):
+    async def test_power_change_sends_command(self):
         coord = _make_coordinator()
         coord._current_mode = Mode.AUTO
-        now = datetime.now(tz=UTC)
-        coord._last_mode_change_time = now - timedelta(seconds=MIN_MODE_CHANGE_SECONDS + 1)
+        coord._last_commanded_power = 0
 
         decision = Decision(mode=Mode.DISCHARGE, power=500, reason="test")
 
@@ -131,6 +127,7 @@ class TestModeChangeCooldown:
             patch(f"{_COORD_MOD}.regulate", return_value=decision),
             patch(f"{_COORD_MOD}.dt_util") as mock_dt,
         ):
+            now = datetime.now(tz=UTC)
             mock_dt.utcnow.return_value = now
             mock_dt.now.return_value = now
             result = await coord._async_update_data()
@@ -141,96 +138,10 @@ class TestModeChangeCooldown:
         coord._controller.set_power.assert_awaited_once_with(500)
 
     @pytest.mark.asyncio
-    async def test_mode_change_suppressed_during_cooldown(self):
-        coord = _make_coordinator()
-        coord._current_mode = Mode.AUTO
-        now = datetime.now(tz=UTC)
-        coord._last_mode_change_time = now - timedelta(seconds=5)
-
-        decision = Decision(mode=Mode.DISCHARGE, power=500, reason="test")
-
-        with (
-            patch(f"{_COORD_MOD}.regulate", return_value=decision),
-            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
-        ):
-            mock_dt.utcnow.return_value = now
-            mock_dt.now.return_value = now
-            result = await coord._async_update_data()
-
-        assert coord._current_mode == Mode.AUTO
-        assert result.mode == Mode.AUTO
-        assert "cooldown" in result.reason
-        coord._controller.set_power.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_cooldown_exact_boundary(self):
-        coord = _make_coordinator()
-        coord._current_mode = Mode.AUTO
-        now = datetime.now(tz=UTC)
-        coord._last_mode_change_time = now - timedelta(seconds=MIN_MODE_CHANGE_SECONDS)
-
-        decision = Decision(mode=Mode.DISCHARGE, power=500, reason="test")
-
-        with (
-            patch(f"{_COORD_MOD}.regulate", return_value=decision),
-            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
-        ):
-            mock_dt.utcnow.return_value = now
-            mock_dt.now.return_value = now
-            result = await coord._async_update_data()
-
-        assert result.mode == Mode.DISCHARGE
-        assert coord._current_mode == Mode.DISCHARGE
-
-    @pytest.mark.asyncio
-    async def test_cooldown_updates_last_mode_change_time(self):
-        coord = _make_coordinator()
-        coord._current_mode = Mode.AUTO
-        now = datetime.now(tz=UTC)
-        coord._last_mode_change_time = now - timedelta(seconds=60)
-
-        decision = Decision(mode=Mode.DISCHARGE, power=500, reason="test")
-
-        with (
-            patch(f"{_COORD_MOD}.regulate", return_value=decision),
-            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
-        ):
-            mock_dt.utcnow.return_value = now
-            mock_dt.now.return_value = now
-            await coord._async_update_data()
-
-        assert coord._last_mode_change_time == now
-
-    @pytest.mark.asyncio
-    async def test_suppressed_mode_change_preserves_last_change_time(self):
-        coord = _make_coordinator()
-        coord._current_mode = Mode.AUTO
-        now = datetime.now(tz=UTC)
-        original_time = now - timedelta(seconds=10)
-        coord._last_mode_change_time = original_time
-
-        decision = Decision(mode=Mode.DISCHARGE, power=500, reason="test")
-
-        with (
-            patch(f"{_COORD_MOD}.regulate", return_value=decision),
-            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
-        ):
-            mock_dt.utcnow.return_value = now
-            mock_dt.now.return_value = now
-            await coord._async_update_data()
-
-        # Last mode change time should NOT have been updated
-        assert coord._last_mode_change_time == original_time
-
-
-class TestPowerChangeWithinSameMode:
-    @pytest.mark.asyncio
-    async def test_power_change_no_cooldown(self):
+    async def test_power_adjustment_sends_command(self):
         coord = _make_coordinator()
         coord._current_mode = Mode.DISCHARGE
         coord._last_commanded_power = 400
-        now = datetime.now(tz=UTC)
-        coord._last_mode_change_time = now - timedelta(seconds=5)
 
         decision = Decision(mode=Mode.DISCHARGE, power=600, reason="adjust")
 
@@ -238,6 +149,7 @@ class TestPowerChangeWithinSameMode:
             patch(f"{_COORD_MOD}.regulate", return_value=decision),
             patch(f"{_COORD_MOD}.dt_util") as mock_dt,
         ):
+            now = datetime.now(tz=UTC)
             mock_dt.utcnow.return_value = now
             mock_dt.now.return_value = now
             result = await coord._async_update_data()
@@ -246,46 +158,51 @@ class TestPowerChangeWithinSameMode:
         assert result.power == 600
         assert coord._last_commanded_power == 600
         coord._controller.set_power.assert_awaited_once_with(600)
-        # Power change resets cooldown timer
-        assert coord._last_mode_change_time == now
 
     @pytest.mark.asyncio
-    async def test_power_change_resets_cooldown(self):
-        """After a power adjustment, mode change should be blocked for another full cooldown."""
+    async def test_mode_change_with_power_change(self):
+        """Switching from discharge to charge sends command."""
         coord = _make_coordinator()
         coord._current_mode = Mode.DISCHARGE
-        coord._last_commanded_power = 400
+        coord._last_commanded_power = 500
 
-        # First: power adjustment at t=0
-        t0 = datetime.now(tz=UTC)
-        coord._last_mode_change_time = t0 - timedelta(seconds=50)
-        power_decision = Decision(mode=Mode.DISCHARGE, power=600, reason="adjust")
+        decision = Decision(mode=Mode.CHARGE_SURPLUS, power=-400, reason="surplus")
 
         with (
-            patch(f"{_COORD_MOD}.regulate", return_value=power_decision),
+            patch(f"{_COORD_MOD}.regulate", return_value=decision),
             patch(f"{_COORD_MOD}.dt_util") as mock_dt,
         ):
-            mock_dt.utcnow.return_value = t0
-            mock_dt.now.return_value = t0
-            await coord._async_update_data()
-
-        # Cooldown timer was reset to t0
-        assert coord._last_mode_change_time == t0
-
-        # Second: mode change attempt at t0+30s — should be suppressed
-        t1 = t0 + timedelta(seconds=30)
-        mode_decision = Decision(mode=Mode.AUTO, power=0, reason="stop")
-
-        with (
-            patch(f"{_COORD_MOD}.regulate", return_value=mode_decision),
-            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
-        ):
-            mock_dt.utcnow.return_value = t1
-            mock_dt.now.return_value = t1
+            now = datetime.now(tz=UTC)
+            mock_dt.utcnow.return_value = now
+            mock_dt.now.return_value = now
             result = await coord._async_update_data()
 
-        assert result.mode == Mode.DISCHARGE
-        assert "cooldown" in result.reason
+        assert result.mode == Mode.CHARGE_SURPLUS
+        assert coord._current_mode == Mode.CHARGE_SURPLUS
+        assert coord._last_commanded_power == -400
+        coord._controller.set_power.assert_awaited_once_with(-400)
+
+    @pytest.mark.asyncio
+    async def test_stop_discharge_sends_zero(self):
+        """Transitioning to AUTO sends 0W."""
+        coord = _make_coordinator()
+        coord._current_mode = Mode.DISCHARGE
+        coord._last_commanded_power = 500
+
+        decision = Decision(mode=Mode.AUTO, power=0, reason="grid zeroed")
+
+        with (
+            patch(f"{_COORD_MOD}.regulate", return_value=decision),
+            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
+        ):
+            now = datetime.now(tz=UTC)
+            mock_dt.utcnow.return_value = now
+            mock_dt.now.return_value = now
+            result = await coord._async_update_data()
+
+        assert result.mode == Mode.AUTO
+        assert coord._last_commanded_power == 0
+        coord._controller.set_power.assert_awaited_once_with(0)
 
 
 class TestSendCommand:
@@ -331,11 +248,7 @@ class TestNoChangeSkipsCommand:
 
     @pytest.mark.asyncio
     async def test_no_change_refreshes_after_interval(self):
-        """Command is re-sent when COMMAND_REFRESH_SECONDS elapsed.
-
-        Regression: Marstek passive mode expires after 1h. Without periodic
-        re-send, battery stops mid-charge.
-        """
+        """Command is re-sent when COMMAND_REFRESH_SECONDS elapsed."""
         coord = _make_coordinator()
         coord._current_mode = Mode.CHARGE_OFF_PEAK
         coord._last_commanded_power = -1500
@@ -358,7 +271,7 @@ class TestNoChangeSkipsCommand:
 
     @pytest.mark.asyncio
     async def test_no_change_auto_skips_refresh(self):
-        """AUTO mode should not re-send commands (0W = idle)."""
+        """AUTO mode (0W) should not re-send commands."""
         coord = _make_coordinator()
         coord._current_mode = Mode.AUTO
         coord._last_commanded_power = 0

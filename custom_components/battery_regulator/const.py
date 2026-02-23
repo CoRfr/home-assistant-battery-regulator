@@ -39,21 +39,9 @@ DEFAULT_SURPLUS_THRESHOLD = 100
 DEFAULT_SURPLUS_SOC_MAX = 95
 DEFAULT_DISCHARGE_MIN_POWER = 50
 
-# Hardcoded regulation constants (not worth exposing)
-OFF_PEAK_CHARGE_START_HOUR = 2
-OFF_PEAK_CHARGE_END_HOUR = 6
-SURPLUS_STOP_GRID_THRESHOLD = -50
-DISCHARGE_GRID_OFFSET = 20
-CHARGE_SURPLUS_OFFSET = 100
-OFF_PEAK_RESERVE_SOC = 10
-PEAK_START_HOUR = 22
-
 # Retry settings
 RETRY_DELAY_SECONDS = 5
 RETRY_MAX_ATTEMPTS = 3
-
-# Mode change cooldown
-MIN_MODE_CHANGE_SECONDS = 60
 
 # Command refresh: re-send even when nothing changed to keep battery
 # controller alive (Marstek passive mode expires after its duration).
