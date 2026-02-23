@@ -191,11 +191,16 @@ def regulate(
             )
 
     # Rule 4: Peak discharge
+    # Guard: don't start discharge when solar is significant — surplus charging
+    # will resume when loads drop.  Without this, PAC cycling causes rapid
+    # surplus→auto→discharge→surplus oscillation with grid imports during each
+    # cooldown window.
     if (
         not state.is_off_peak
         and state.battery_soc > reserve_soc
         and current_mode != Mode.CHARGE_SURPLUS
         and (state.grid_power > DISCHARGE_GRID_OFFSET or current_mode == Mode.DISCHARGE)
+        and (current_mode == Mode.DISCHARGE or state.solar_production <= surplus_threshold)
     ):
         power = _clamp(
             state.grid_power + bat_signed - DISCHARGE_GRID_OFFSET,

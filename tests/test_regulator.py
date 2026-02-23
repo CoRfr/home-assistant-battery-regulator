@@ -369,6 +369,61 @@ class TestRegulatePeakDischarge:
         assert decision.power == 0
         assert "Discharge stop" in decision.reason
 
+    def test_discharge_blocked_when_solar_significant(self):
+        """Don't start discharge when solar is above surplus threshold.
+
+        Regression: 2026-02-22 14:00 local. PAC cycling causes load spikes
+        that push grid positive during surplus charging. System exits surplus,
+        then starts discharge after cooldown, then re-enters surplus when load
+        drops — oscillating and importing from grid during cooldowns.
+        With solar > surplus_threshold, stay in AUTO and wait for surplus.
+        """
+        state = make_state(
+            grid_power=500,
+            battery_soc=60,
+            battery_power_abs=0,
+            is_off_peak=False,
+            hour=14,
+            solar_production=2000,
+            solar_remaining_kwh=3.0,
+        )
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode != Mode.DISCHARGE
+        assert decision.mode == Mode.AUTO
+
+    def test_discharge_allowed_when_solar_low(self):
+        """Discharge allowed when solar is below surplus threshold."""
+        state = make_state(
+            grid_power=500,
+            battery_soc=60,
+            battery_power_abs=0,
+            is_off_peak=False,
+            hour=19,
+            solar_production=50,
+            solar_remaining_kwh=0.0,
+        )
+        decision = regulate(state, Mode.AUTO, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.DISCHARGE
+
+    def test_discharge_continues_despite_solar(self):
+        """Already-discharging battery keeps discharging even with some solar.
+
+        Once in DISCHARGE mode, solar production doesn't force exit — only
+        Rule 6 conditions (off-peak, low SOC, low power) or Rule 3 (real
+        surplus with grid export) should stop it.
+        """
+        state = make_state(
+            grid_power=300,
+            battery_soc=60,
+            battery_power_abs=400,
+            is_off_peak=False,
+            hour=14,
+            solar_production=500,
+            solar_remaining_kwh=2.0,
+        )
+        decision = regulate(state, Mode.DISCHARGE, DEFAULT_CONFIG, unsigned_sensor=True)
+        assert decision.mode == Mode.DISCHARGE
+
     def test_discharge_starts_from_idle_battery(self):
         """Discharge must start even when battery is idle (power_abs near zero).
 
