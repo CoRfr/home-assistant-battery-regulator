@@ -132,6 +132,14 @@ def regulate(
     if state.battery_soc >= config.surplus_soc_max:
         target = max(target, 0)
 
+    # Surplus charging: never charge more than solar produces
+    # (prevents grid import from feedback overshoot during Marstek settling)
+    is_hc_charge = (
+        state.is_off_peak and OFF_PEAK_CHARGE_START_HOUR <= state.hour < OFF_PEAK_CHARGE_END_HOUR
+    )
+    if target < 0 and not is_hc_charge:
+        target = max(target, -state.solar_production)
+
     # Dead band: tiny discharge not worth sending
     if 0 < target < config.discharge_min_power:
         target = 0

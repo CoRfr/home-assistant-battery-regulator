@@ -377,6 +377,50 @@ class TestRegulatePriority:
         assert decision.mode == Mode.DISCHARGE
         assert decision.power == 810
 
+    def test_surplus_clamp_prevents_grid_import(self):
+        """Feedback overshoot clamped to solar production.
+
+        Scenario: battery commanded to -600W but Marstek hasn't responded,
+        grid still exporting 600W. Without clamp, target = -600 + (-600) = -1200W
+        which would import 600W from grid once Marstek catches up.
+        With clamp, target capped at -solar_production = -700W.
+        """
+        state = make_state(
+            grid_power=-600,
+            solar_production=700,
+            battery_soc=50,
+            is_off_peak=False,
+            hour=12,
+        )
+        decision = regulate(state, -600, DEFAULT_CONFIG)
+        assert decision.power == -700  # clamped to solar, not -1200
+
+    def test_surplus_clamp_zero_solar_stops_charge(self):
+        """No solar -> no surplus charging, even if feedback says charge."""
+        state = make_state(
+            grid_power=0,
+            solar_production=0,
+            battery_soc=50,
+            is_off_peak=False,
+            hour=14,
+        )
+        decision = regulate(state, -500, DEFAULT_CONFIG)
+        # target = -500 + 0 = -500, clamped to max(-500, 0) = 0
+        assert decision.power == 0
+
+    def test_surplus_clamp_does_not_affect_off_peak(self):
+        """Off-peak 2-6am charging is NOT clamped to solar."""
+        state = make_state(
+            is_off_peak=True,
+            hour=3,
+            battery_soc=30,
+            solar_production=0,
+            tempo_color="Bleu",
+        )
+        decision = regulate(state, 0, DEFAULT_CONFIG)
+        assert decision.mode == Mode.CHARGE_OFF_PEAK
+        assert decision.power == -1500
+
     def test_genuine_surplus_during_discharge(self):
         """Solar surplus during discharge -> feedback naturally charges.
 
