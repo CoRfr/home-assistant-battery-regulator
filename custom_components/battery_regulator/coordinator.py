@@ -91,6 +91,7 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
         )
         self._last_command_time = dt_util.utcnow()
         self._retry_task: asyncio.Task | None = None
+        self._cycles_since_change = 0
 
     @property
     def controller(self) -> BatteryController:
@@ -178,11 +179,27 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
 
     async def _async_update_data(self) -> Decision:
         state = self._read_state()
-        # Use last commanded power as bat_signed — the sensor lags behind
-        # commands by one or more cycles, causing the feedback loop to
-        # overreact.  The commanded value is what the battery *should* be
-        # doing, and the grid reading already reflects the actual effect.
-        bat_signed = self._last_commanded_power
+        self._cycles_since_change += 1
+
+        # First 2 cycles after a power change: use commanded power
+        # (battery hasn't settled yet, sensor would cause overshoot).
+        # After that: use actual sensor power so the feedback loop
+        # detects when the battery refuses to follow commands
+        # (e.g. hardware SOC floor).
+        if self._cycles_since_change <= 2:
+            bat_signed = self._last_commanded_power
+        else:
+            bat_signed = self.battery_power_signed
+            if (
+                abs(self._last_commanded_power) > 100
+                and abs(bat_signed) < abs(self._last_commanded_power) * 0.3
+            ):
+                _LOGGER.warning(
+                    "Battery not following: commanded=%dW, actual=%dW",
+                    self._last_commanded_power,
+                    bat_signed,
+                )
+
         decision = regulate(state, bat_signed, self._reg_config)
 
         power_changed = decision.power != self._last_commanded_power
@@ -198,6 +215,7 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
             )
             self._current_mode = decision.mode
             self._last_commanded_power = decision.power
+            self._cycles_since_change = 0
             now = dt_util.utcnow()
             self._last_command_time = now
             self._cancel_retry()

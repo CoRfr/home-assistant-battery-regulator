@@ -66,14 +66,14 @@ def compute_reserve_soc(
 ) -> int:
     """Compute reserve SOC (minimum to keep for peak loads)."""
     if is_off_peak:
-        return 10
+        return 15
 
     hours_to_off_peak = max(22 - (hour + minute / 60), 0)
     energy_needed_wh = hours_to_off_peak * base_load_w
     solar_remaining_wh = solar_remaining_kwh * 1000
     energy_from_battery_wh = max(energy_needed_wh - solar_remaining_wh, 0)
     reserve = round(energy_from_battery_wh / battery_capacity_wh * 100)
-    return max(reserve, 10)
+    return max(reserve, 15)
 
 
 OFF_PEAK_CHARGE_START_HOUR = 2

@@ -72,8 +72,8 @@ class TestComputeTargetSoc:
 
 
 class TestComputeReserveSoc:
-    def test_off_peak_always_10(self):
-        assert compute_reserve_soc(True, 3, 0, 400, 5.0, 5120) == 10
+    def test_off_peak_always_15(self):
+        assert compute_reserve_soc(True, 3, 0, 400, 5.0, 5120) == 15
 
     def test_peak_early_morning_high_reserve(self):
         # 8am, 14h to off-peak, 400W base, no solar remaining
@@ -88,14 +88,14 @@ class TestComputeReserveSoc:
         assert reserve == round(1200 / 5120 * 100)  # ~23%
 
     def test_peak_late_evening_low_reserve(self):
-        # 21:00, 1h to off-peak, round(1*400/5120*100) ~= 8% -> clamped to min 10
+        # 21:00, 1h to off-peak, round(1*400/5120*100) ~= 8% -> clamped to min 15
         reserve = compute_reserve_soc(False, 21, 0, 400, 0.0, 5120)
-        assert reserve == 10
+        assert reserve == 15
 
     def test_after_22_zero_hours(self):
         # 22:30 -> hours_to_off_peak = max(22 - 22.5, 0) = 0
         reserve = compute_reserve_soc(False, 22, 30, 400, 0.0, 5120)
-        assert reserve == 10  # min
+        assert reserve == 15  # min
 
 
 # --- regulate: feedback loop basics ---
@@ -216,12 +216,12 @@ class TestSOCLimits:
         """SOC at reserve -> discharge clamped to 0."""
         state = make_state(
             grid_power=500,
-            battery_soc=10,
+            battery_soc=15,
             hour=21,
             solar_remaining_kwh=0.0,
         )
-        # reserve at 21:00 = max(round(1*400/5120*100), 10) = 10
-        # SOC=10 <= reserve=10 -> target clamped to min(target, 0)
+        # reserve at 21:00 = max(round(1*400/5120*100), 15) = 15
+        # SOC=15 <= reserve=15 -> target clamped to min(target, 0)
         decision = regulate(state, 0, DEFAULT_CONFIG)
         assert decision.power <= 0
 
