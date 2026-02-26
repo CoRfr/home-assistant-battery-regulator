@@ -50,10 +50,10 @@ def compute_target_soc(tempo_color: str | None, solar_forecast_kwh: float) -> in
     if tempo_color in ("Rouge", "Blanc"):
         return max(int(100 - solar_forecast_kwh * 2), 60)
     elif tempo_color == "Bleu":
-        return max(int(60 - solar_forecast_kwh * 2.5), 20)
+        return max(int(60 - solar_forecast_kwh * 2.5), 30)
     else:
         # No tempo sensor or unknown color — simplified formula
-        return max(int(80 - solar_forecast_kwh * 3), 20)
+        return max(int(80 - solar_forecast_kwh * 3), 30)
 
 
 def compute_reserve_soc(

@@ -57,7 +57,7 @@ class TestComputeTargetSoc:
         assert compute_target_soc("Bleu", 0.0) == 60
 
     def test_bleu_high_solar(self):
-        assert compute_target_soc("Bleu", 16.0) == 20  # clamped
+        assert compute_target_soc("Bleu", 16.0) == 30  # clamped
 
     def test_bleu_mid_solar(self):
         assert compute_target_soc("Bleu", 8.0) == 40
@@ -65,7 +65,7 @@ class TestComputeTargetSoc:
     def test_no_tempo(self):
         # Simplified formula: max(80 - forecast*3, 20)
         assert compute_target_soc(None, 0.0) == 80
-        assert compute_target_soc(None, 20.0) == 20  # clamped
+        assert compute_target_soc(None, 20.0) == 30  # clamped
 
 
 # --- compute_reserve_soc ---
