@@ -106,6 +106,7 @@ def _make_coordinator(
     coord._last_command_time = datetime.now(tz=UTC) - timedelta(seconds=120)
     coord._retry_task = None
     coord._cycles_since_change = 0
+    coord._in_auto_mode = False
     coord.logger = MagicMock()
     return coord
 

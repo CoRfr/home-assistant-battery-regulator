@@ -21,8 +21,10 @@ from .const import (
     CONF_GRID_POWER_SENSOR,
     CONF_HC_CHARGE_RATE,
     CONF_HC_HP_SENSOR,
+    CONF_MARSTEK_AUTO_MODE_BUTTON,
     CONF_MAX_CHARGE_RATE,
     CONF_MAX_DISCHARGE_RATE,
+    CONF_SELF_CONSUMPTION,
     CONF_SOLAR_FORECAST_SENSOR,
     CONF_SOLAR_PRODUCTION_SENSOR,
     CONF_SOLAR_REMAINING_SENSOR,
@@ -44,6 +46,7 @@ from .const import (
     RETRY_MAX_ATTEMPTS,
 )
 from .controller import BatteryController
+from .marstek_controller import MarstekController
 from .regulator import (
     Config,
     Decision,
@@ -88,10 +91,12 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
             surplus_threshold=config.get(CONF_SURPLUS_THRESHOLD, DEFAULT_SURPLUS_THRESHOLD),
             surplus_soc_max=config.get(CONF_SURPLUS_SOC_MAX, DEFAULT_SURPLUS_SOC_MAX),
             discharge_min_power=config.get(CONF_DISCHARGE_MIN_POWER, DEFAULT_DISCHARGE_MIN_POWER),
+            self_consumption=config.get(CONF_SELF_CONSUMPTION, False),
         )
         self._last_command_time = dt_util.utcnow()
         self._retry_task: asyncio.Task | None = None
         self._cycles_since_change = 0
+        self._in_auto_mode = False  # Track if battery is in auto (self-consumption) mode
 
     @property
     def controller(self) -> BatteryController:
@@ -202,6 +207,37 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
 
         decision = regulate(state, bat_signed, self._reg_config)
 
+        # Handle self-consumption mode transitions
+        if decision.mode == Mode.SELF_CONSUMPTION:
+            if not self._in_auto_mode:
+                _LOGGER.info(
+                    "Battery regulator: %s -> self_consumption (%s)",
+                    self._current_mode.value,
+                    decision.reason,
+                )
+                self._cancel_retry()
+                await self._switch_to_auto_mode()
+                self._in_auto_mode = True
+                self._last_commanded_power = 0
+                self._cycles_since_change = 0
+            else:
+                _LOGGER.debug(
+                    "Battery regulator: self_consumption — %s",
+                    decision.reason,
+                )
+            self._current_mode = decision.mode
+            return decision
+
+        # Leaving self-consumption: switch back to passive mode
+        if self._in_auto_mode:
+            _LOGGER.info(
+                "Battery regulator: self_consumption -> %s, power %dW (%s)",
+                decision.mode.value,
+                decision.power,
+                decision.reason,
+            )
+            self._in_auto_mode = False
+
         power_changed = decision.power != self._last_commanded_power
 
         if power_changed:
@@ -246,6 +282,14 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
                 )
 
         return decision
+
+    async def _switch_to_auto_mode(self) -> None:
+        """Switch battery to auto (self-consumption) mode."""
+        auto_mode_button = self._config.get(CONF_MARSTEK_AUTO_MODE_BUTTON)
+        if auto_mode_button and isinstance(self._controller, MarstekController):
+            await self._controller.set_auto_mode(auto_mode_button)
+        else:
+            _LOGGER.warning("Battery regulator: no auto mode button configured")
 
     async def _send_command(self) -> None:
         """Send the current commanded power to the battery controller."""

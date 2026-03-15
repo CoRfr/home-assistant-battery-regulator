@@ -22,7 +22,8 @@
           "surplus_threshold": "Seuil surplus (W)",
           "surplus_soc_max": "SOC max charge surplus (%)",
           "discharge_min_power": "Puissance décharge min (W)",
-          "update_interval": "Intervalle de mise à jour (s)"
+          "update_interval": "Intervalle de mise à jour (s)",
+          "self_consumption": "Mode autoconsommation (la batterie gère le zéro réseau via son propre compteur)"
         }
       },
       "marstek": {
@@ -58,7 +59,8 @@
           "surplus_threshold": "Seuil surplus (W)",
           "surplus_soc_max": "SOC max charge surplus (%)",
           "discharge_min_power": "Puissance décharge min (W)",
-          "update_interval": "Intervalle de mise à jour (s)"
+          "update_interval": "Intervalle de mise à jour (s)",
+          "self_consumption": "Mode autoconsommation (la batterie gère le zéro réseau via son propre compteur)"
         }
       },
       "marstek": {

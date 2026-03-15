@@ -22,7 +22,8 @@
           "surplus_threshold": "Surplus threshold (W)",
           "surplus_soc_max": "Max SOC for surplus charging (%)",
           "discharge_min_power": "Min discharge power (W)",
-          "update_interval": "Update interval (s)"
+          "update_interval": "Update interval (s)",
+          "self_consumption": "Self-consumption mode (battery handles grid-zeroing via its own meter)"
         }
       },
       "marstek": {
@@ -58,7 +59,8 @@
           "surplus_threshold": "Surplus threshold (W)",
           "surplus_soc_max": "Max SOC for surplus charging (%)",
           "discharge_min_power": "Min discharge power (W)",
-          "update_interval": "Update interval (s)"
+          "update_interval": "Update interval (s)",
+          "self_consumption": "Self-consumption mode (battery handles grid-zeroing via its own meter)"
         }
       },
       "marstek": {

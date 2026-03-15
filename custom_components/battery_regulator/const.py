@@ -23,6 +23,7 @@ CONF_MAX_DISCHARGE_RATE = "max_discharge_rate"
 CONF_SURPLUS_THRESHOLD = "surplus_threshold"
 CONF_SURPLUS_SOC_MAX = "surplus_soc_max"
 CONF_DISCHARGE_MIN_POWER = "discharge_min_power"
+CONF_SELF_CONSUMPTION = "self_consumption"
 
 # Config keys — Marstek-specific
 CONF_MARSTEK_DEVICE_ID = "marstek_device_id"

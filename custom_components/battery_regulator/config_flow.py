@@ -22,6 +22,7 @@ from .const import (
     CONF_MARSTEK_DEVICE_ID,
     CONF_MAX_CHARGE_RATE,
     CONF_MAX_DISCHARGE_RATE,
+    CONF_SELF_CONSUMPTION,
     CONF_SOLAR_FORECAST_SENSOR,
     CONF_SOLAR_PRODUCTION_SENSOR,
     CONF_SOLAR_REMAINING_SENSOR,
@@ -163,6 +164,7 @@ STEP_GENERIC_SCHEMA = vol.Schema(
                 mode=selector.NumberSelectorMode.BOX,
             ),
         ),
+        vol.Optional(CONF_SELF_CONSUMPTION, default=True): selector.BooleanSelector(),
     }
 )
 

@@ -8,6 +8,7 @@ from enum import StrEnum
 
 class Mode(StrEnum):
     AUTO = "auto"
+    SELF_CONSUMPTION = "self_consumption"
     CHARGE_SURPLUS = "charge_surplus"
     CHARGE_OFF_PEAK = "charge_off_peak"
     DISCHARGE = "discharge"
@@ -36,6 +37,7 @@ class Config:
     surplus_threshold: int  # Grid export threshold to start surplus charging (W, e.g. 100)
     surplus_soc_max: int  # Max SOC for surplus charging (%, e.g. 95)
     discharge_min_power: int  # Min discharge power worth sending (W, e.g. 50)
+    self_consumption: bool = False  # Use battery's self-consumption mode during peak
 
 
 @dataclass(frozen=True)
@@ -116,6 +118,32 @@ def regulate(
             mode=Mode.CHARGE_OFF_PEAK,
             power=-config.off_peak_charge_rate,
             reason=f"Off-peak charge: SOC={state.battery_soc}% < target={target_soc}%",
+        )
+
+    # Off-peak hold: outside charge window, SOC at target — hold charge for peak hours
+    if (
+        state.is_off_peak
+        and not (OFF_PEAK_CHARGE_START_HOUR <= state.hour < OFF_PEAK_CHARGE_END_HOUR)
+        and state.battery_soc >= target_soc
+    ):
+        return Decision(
+            mode=Mode.AUTO,
+            power=0,
+            reason=(
+                f"Off-peak hold: SOC={state.battery_soc}% >= target={target_soc}%, "
+                f"holding charge for peak"
+            ),
+        )
+
+    # Self-consumption: let battery handle grid-zeroing autonomously
+    if config.self_consumption:
+        return Decision(
+            mode=Mode.SELF_CONSUMPTION,
+            power=0,
+            reason=(
+                f"Self-consumption: SOC={state.battery_soc}%, "
+                f"reserve={reserve_soc}%, target_soc={target_soc}%"
+            ),
         )
 
     # Feedback: zero out grid
