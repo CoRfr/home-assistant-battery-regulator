@@ -124,7 +124,7 @@ def regulate(
     if (
         state.is_off_peak
         and not (OFF_PEAK_CHARGE_START_HOUR <= state.hour < OFF_PEAK_CHARGE_END_HOUR)
-        and state.battery_soc >= target_soc
+        and state.battery_soc <= target_soc
     ):
         return Decision(
             mode=Mode.AUTO,
