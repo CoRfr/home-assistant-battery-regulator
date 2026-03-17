@@ -272,6 +272,30 @@ class TestNoChangeSkipsCommand:
         coord._controller.set_power.assert_awaited_once_with(-1500)
 
     @pytest.mark.asyncio
+    async def test_leaving_self_consumption_sends_command(self):
+        """Leaving self-consumption mode must send set_power to exit Marstek auto mode."""
+        coord = _make_coordinator()
+        coord._current_mode = Mode.SELF_CONSUMPTION
+        coord._last_commanded_power = 0
+        coord._in_auto_mode = True
+
+        decision = Decision(mode=Mode.AUTO, power=0, reason="off-peak hold")
+
+        with (
+            patch(f"{_COORD_MOD}.regulate", return_value=decision),
+            patch(f"{_COORD_MOD}.dt_util") as mock_dt,
+        ):
+            now = datetime.now(tz=UTC)
+            mock_dt.utcnow.return_value = now
+            mock_dt.now.return_value = now
+            result = await coord._async_update_data()
+
+        assert result.mode == Mode.AUTO
+        assert coord._in_auto_mode is False
+        # Must send set_power(0) to switch Marstek from auto to passive mode
+        coord._controller.set_power.assert_awaited_once_with(0)
+
+    @pytest.mark.asyncio
     async def test_no_change_auto_skips_refresh(self):
         """AUTO mode (0W) should not re-send commands."""
         coord = _make_coordinator()

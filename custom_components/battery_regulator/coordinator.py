@@ -237,6 +237,14 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
                 decision.reason,
             )
             self._in_auto_mode = False
+            # Force send command to exit Marstek auto mode into passive mode
+            self._last_commanded_power = decision.power
+            self._current_mode = decision.mode
+            self._cycles_since_change = 0
+            self._last_command_time = dt_util.utcnow()
+            self._cancel_retry()
+            await self._send_command_with_retry()
+            return decision
 
         power_changed = decision.power != self._last_commanded_power
 
