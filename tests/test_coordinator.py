@@ -296,13 +296,13 @@ class TestNoChangeSkipsCommand:
         coord._controller.set_power.assert_awaited_once_with(0)
 
     @pytest.mark.asyncio
-    async def test_no_change_auto_skips_refresh(self):
-        """AUTO mode (0W) should not re-send commands."""
+    async def test_auto_refreshes_after_interval(self):
+        """AUTO mode (0W) re-sends to keep Marstek in passive mode."""
         coord = _make_coordinator()
         coord._current_mode = Mode.AUTO
         coord._last_commanded_power = 0
 
-        decision = Decision(mode=Mode.AUTO, power=0, reason="idle")
+        decision = Decision(mode=Mode.AUTO, power=0, reason="hold")
 
         now = datetime.now(tz=UTC)
         coord._last_command_time = now - timedelta(seconds=COMMAND_REFRESH_SECONDS + 1)
@@ -316,4 +316,4 @@ class TestNoChangeSkipsCommand:
             result = await coord._async_update_data()
 
         assert result.mode == Mode.AUTO
-        coord._controller.set_power.assert_not_awaited()
+        coord._controller.set_power.assert_awaited_once_with(0)

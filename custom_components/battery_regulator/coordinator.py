@@ -270,9 +270,11 @@ class BatteryRegulatorCoordinator(DataUpdateCoordinator[Decision]):
 
             # Re-send periodically to keep battery controller alive
             # (Marstek passive mode expires after its configured duration).
+            # Also refresh 0W commands to prevent Marstek from reverting
+            # to auto mode when passive mode expires during hold.
             now = dt_util.utcnow()
             since_last = (now - self._last_command_time).total_seconds()
-            if self._last_commanded_power != 0 and since_last >= COMMAND_REFRESH_SECONDS:
+            if since_last >= COMMAND_REFRESH_SECONDS:
                 _LOGGER.debug(
                     "Battery regulator: refresh command (%s, %dW) after %.0fs",
                     decision.mode.value,
