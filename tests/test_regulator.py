@@ -450,8 +450,8 @@ class TestOffPeakHold:
         assert decision.power == 0
         assert "hold" in decision.reason.lower()
 
-    def test_off_peak_hold_does_not_apply_during_charge_window(self):
-        """During 2-6am charge window, off-peak charge takes priority."""
+    def test_off_peak_charge_takes_priority_during_charge_window(self):
+        """During 2-6am charge window, SOC below target -> off-peak charge."""
         state = make_state(
             is_off_peak=True,
             hour=3,
@@ -460,6 +460,22 @@ class TestOffPeakHold:
         )
         decision = regulate(state, 0, DEFAULT_CONFIG)
         assert decision.mode == Mode.CHARGE_OFF_PEAK
+
+    def test_off_peak_hold_during_charge_window_at_target(self):
+        """During 2-6am charge window, SOC at target -> hold (not self-consumption)."""
+        state = make_state(
+            is_off_peak=True,
+            hour=4,
+            battery_soc=90,
+            grid_power=200,
+            tempo_color="Rouge",
+            solar_forecast_kwh=5.0,
+            # target_soc = max(100 - 5*2, 60) = 90, SOC 90 <= 90 -> hold
+        )
+        decision = regulate(state, 0, SELF_CONSUMPTION_CONFIG)
+        assert decision.mode == Mode.AUTO
+        assert decision.power == 0
+        assert "hold" in decision.reason.lower()
 
     def test_off_peak_hold_does_not_apply_above_target(self):
         """Off-peak outside charge window, SOC > target -> feedback (can discharge)."""
@@ -525,6 +541,21 @@ class TestSelfConsumption:
             grid_power=-500,
             solar_production=600,
             # default: Bleu, 5kWh -> target_soc = 48, SOC 50 > 48 -> no hold
+        )
+        decision = regulate(state, 0, SELF_CONSUMPTION_CONFIG)
+        assert decision.mode == Mode.SELF_CONSUMPTION
+        assert decision.power == 0
+
+    def test_self_consumption_off_peak_in_charge_window_soc_above_target(self):
+        """Off-peak during 2-6am, SOC > target -> self-consumption (not charging)."""
+        state = make_state(
+            is_off_peak=True,
+            hour=4,
+            battery_soc=92,
+            grid_power=200,
+            tempo_color="Rouge",
+            solar_forecast_kwh=5.0,
+            # target_soc = max(100 - 5*2, 60) = 90, SOC 92 > 90 -> no hold, self-consumption
         )
         decision = regulate(state, 0, SELF_CONSUMPTION_CONFIG)
         assert decision.mode == Mode.SELF_CONSUMPTION

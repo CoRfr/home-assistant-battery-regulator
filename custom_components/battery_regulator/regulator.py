@@ -120,12 +120,8 @@ def regulate(
             reason=f"Off-peak charge: SOC={state.battery_soc}% < target={target_soc}%",
         )
 
-    # Off-peak hold: outside charge window, SOC at target — hold charge for peak hours
-    if (
-        state.is_off_peak
-        and not (OFF_PEAK_CHARGE_START_HOUR <= state.hour < OFF_PEAK_CHARGE_END_HOUR)
-        and state.battery_soc <= target_soc
-    ):
+    # Off-peak hold: SOC at or below target — hold charge for peak hours
+    if state.is_off_peak and state.battery_soc <= target_soc:
         return Decision(
             mode=Mode.AUTO,
             power=0,
